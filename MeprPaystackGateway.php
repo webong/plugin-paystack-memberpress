@@ -1,8 +1,26 @@
 <?php
+/**
+ * Plugin Name: Paystack Gateway for MemberPress
+ * Plugin URI: https://paystack.com
+ * Description: Processes payments via Paystack for MemberPress
+ * Version: 1.0.0
+ * Author: Paystack
+ * License: GPLv2 or later
+ */
 if(!defined('ABSPATH')) {die('You are not allowed to call this page directly.');}
 
+add_filter( 'mepr-gateway-paths', 'MeprPaystackGateway_gateway_paths' );
+// TODO: wp_enqueue_script ( 'paystack-memberpress-script', plugin_dir_path( __FILE__ ) . 'assets/js/script.js' );
+wp_enqueue_script ( 'paystack-memberpress-script', plugins_url() . '/paystack-memberpress/assets/js/script.js' );
+error_log(plugins_url());
+
+function MeprPaystackGateway_gateway_paths( $paths ) {
+  $paths[] = dirname( __FILE__ );
+  return $paths;
+}
+
 /** Lays down the interface for Gateways in MemberPress **/
-class MeprPaystackGateway extends MeprBaseGateway {
+class MeprPaystackGateway extends MeprBaseRealGateway {
   /** Used in the view to identify the gateway */
   public function __construct()
   {
@@ -13,18 +31,26 @@ class MeprPaystackGateway extends MeprBaseGateway {
     $this->set_defaults();
 
     $this->capabilities = array(
-      //'process-payments',
-      //'create-subscriptions',
-      //'process-refunds',
-      //'cancel-subscriptions',
-      //'update-subscriptions',
-      //'suspend-subscriptions',
-      //'send-cc-expirations'
+      'process-payments',
+      'create-subscriptions',
+      'process-refunds',
+      'cancel-subscriptions',
+      'update-subscriptions',
+      'suspend-subscriptions',
+      'send-cc-expirations'
     );
 
     // Setup the notification actions for this gateway
-    $this->notifiers = array();
+    $this->notifiers = array( 'whk' => 'listener' );
   }
+
+  // /**
+	//  * Gateway paths.
+	//  *
+	//  * @param array $paths Array with gateway paths.
+	//  * @return array
+	//  */
+  // public 
 
   public function load($settings)
   {
@@ -39,7 +65,7 @@ class MeprPaystackGateway extends MeprBaseGateway {
 
     $this->settings = (object)array_merge(
       array(
-        'gateway' => 'MeprStripeGateway',
+        'gateway' => 'MeprPaystackGateway',
         'id' => $this->generate_id(),
         'label' => '',
         'use_label' => true,
@@ -49,8 +75,8 @@ class MeprPaystackGateway extends MeprBaseGateway {
         'sandbox' => false,
         'force_ssl' => false,
         'debug' => false,
-        'test_mode' => false,
-        'use_stripe_checkout' => false,
+        'test_mode' => true,
+        'use_paystack_checkout' => false,
         'api_keys' => array(
           'test' => array(
             'public' => '',
@@ -193,10 +219,76 @@ class MeprPaystackGateway extends MeprBaseGateway {
   public function validate_payment_form($errors) { }
 
   /** Displays the form for the given payment gateway on the MemberPress Options page */
-  public function display_options_form() { }
+  public function display_options_form() {
+    $mepr_options = MeprOptions::fetch();
+
+    $test_secret_key      = trim($this->settings->api_keys['test']['secret']);
+    $test_public_key      = trim($this->settings->api_keys['test']['public']);
+    $live_secret_key      = trim($this->settings->api_keys['live']['secret']);
+    $live_public_key      = trim($this->settings->api_keys['live']['public']);
+    $force_ssl            = ($this->settings->force_ssl == 'on' or $this->settings->force_ssl == true);
+    $debug                = ($this->settings->debug == 'on' or $this->settings->debug == true);
+    $test_mode            = ($this->settings->test_mode == 'on' or $this->settings->test_mode == true);
+    $use_paystack_checkout  = ($this->settings->use_paystack_checkout == 'on' or $this->settings->use_stripe_checkout == true);
+
+    ?>
+    <table id="mepr-paystack-test-keys-<?php echo $this->id; ?>" class="mepr-paystack-test-keys mepr-hidden">
+      <tr>
+        <td><?php _e('Test Secret Key*:', 'memberpress'); ?></td>
+        <td><input type="text" class="mepr-auto-trim" name="<?php echo $mepr_options->integrations_str; ?>[<?php echo $this->id;?>][api_keys][test][secret]" value="<?php echo $test_secret_key; ?>" /></td>
+      </tr>
+      <tr>
+        <td><?php _e('Test Public Key*:', 'memberpress'); ?></td>
+        <td><input type="text" class="mepr-auto-trim" name="<?php echo $mepr_options->integrations_str; ?>[<?php echo $this->id;?>][api_keys][test][public]" value="<?php echo $test_public_key; ?>" /></td>
+      </tr>
+    </table>
+    <table id="mepr-paystack-live-keys-<?php echo $this->id; ?>" class="mepr-paystack-live-keys mepr-hidden">
+      <tr>
+        <td><?php _e('Live Secret Key*:', 'memberpress'); ?></td>
+        <td><input type="text" class="mepr-auto-trim" name="<?php echo $mepr_options->integrations_str; ?>[<?php echo $this->id;?>][api_keys][live][secret]" value="<?php echo $live_secret_key; ?>" /></td>
+      </tr>
+      <tr>
+        <td><?php _e('Live Public Key*:', 'memberpress'); ?></td>
+        <td><input type="text" class="mepr-auto-trim" name="<?php echo $mepr_options->integrations_str; ?>[<?php echo $this->id;?>][api_keys][live][public]" value="<?php echo $live_public_key; ?>" /></td>
+      </tr>
+    </table>
+    <table>
+      <!-- <tr>
+        <td colspan="2"><input class="mepr-paystack-checkout" type="checkbox" name="<?php echo $mepr_options->integrations_str; ?>[<?php echo $this->id;?>][use_paystack_checkout]"<?php echo checked($use_paystack_checkout); ?> />&nbsp;<?php _e('Use Paystack Checkout (Beta)', 'memberpress'); ?></td>
+      </tr> -->
+      <tr>
+        <td colspan="2"><input class="mepr-paystack-testmode" data-integration="<?php echo $this->id; ?>" type="checkbox" name="<?php echo $mepr_options->integrations_str; ?>[<?php echo $this->id;?>][test_mode]"<?php echo checked($test_mode); ?> />&nbsp;<?php _e('Test Mode', 'memberpress'); ?></td>
+      </tr>
+      <tr>
+        <td colspan="2"><input type="checkbox" name="<?php echo $mepr_options->integrations_str; ?>[<?php echo $this->id;?>][force_ssl]"<?php echo checked($force_ssl); ?> />&nbsp;<?php _e('Force SSL', 'memberpress'); ?></td>
+      </tr>
+      <!-- <tr>
+        <td colspan="2"><input type="checkbox" name="<?php echo $mepr_options->integrations_str; ?>[<?php echo $this->id;?>][debug]"<?php echo checked($debug); ?> />&nbsp;<?php _e('Send Debug Emails', 'memberpress'); ?></td>
+      </tr> -->
+      <tr>
+        <td><?php _e('Paystack Webhook URL:', 'memberpress'); ?></td>
+        <td><input type="text" onfocus="this.select();" onclick="this.select();" readonly="true" class="clippy_input" value="<?php echo $this->notify_url('whk'); ?>" /><span class="clippy"><?php echo $this->notify_url('whk'); ?></span></td>
+      </tr>
+    </table>
+    <?php
+   }
 
   /** Validates the form for the given payment gateway on the MemberPress Options page */
-  public function validate_options_form($errors) { }
+  public function validate_options_form($errors) {
+    $mepr_options = MeprOptions::fetch();
+
+    $testmode = isset($_REQUEST[$mepr_options->integrations_str][$this->id]['test_mode']);
+    $testmodestr  = $testmode ? 'test' : 'live';
+
+    if( !isset($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['secret']) or
+         empty($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['secret']) or
+        !isset($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['public']) or
+         empty($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['public']) ) {
+      $errors[] = __("All Paystack API keys must be filled in.", 'memberpress');
+    }
+
+    return $errors;
+  }
 
   /** Displays the update account form on the subscription account page **/
   public function display_update_account_form($subscription_id, $errors=array(), $message="") { }
@@ -212,50 +304,4 @@ class MeprPaystackGateway extends MeprBaseGateway {
 
   /** Returns boolean ... whether or not we should be forcing ssl */
   public function force_ssl() { }
-
-  public static function fetch( $class, $settings=null ) {
-    if(!class_exists($class))
-      throw new MeprInvalidGatewayException(__('Gateway wasn\'t found', 'memberpress'));
-
-    // We'll let the autoloader in memberpress.php
-    // handle including files containing these classes
-    $obj = new $class;
-
-    if( !is_a($obj,'MeprBaseRealGateway') )
-      throw new MeprInvalidGatewayException(__('Not a valid gateway', 'memberpress'));
-
-    if( !is_null($settings) )
-      $obj->load($settings);
-
-    return $obj;
-  }
-
-  public static function all() {
-    static $gateways;
-
-    if( !isset($gateways) ) {
-      $gateways = array();
-
-      foreach( self::paths() as $path ) {
-        $files = @glob( $path . '/Mepr*Gateway.php', GLOB_NOSORT );
-        foreach( $files as $file ) {
-          $class = preg_replace( '#\.php#', '', basename($file) );
-
-          try {
-            $obj = self::fetch($class);
-            $gateways[$class] = $obj->name;
-          }
-          catch (Exception $e) {
-            continue; // For now we do nothing if an exception is thrown
-          }
-        }
-      }
-    }
-
-    return $gateways;
-  }
-
-  public static function paths() {
-    return MeprHooks::apply_filters( 'mepr-gateway-paths', array( MEPR_GATEWAYS_PATH ) );
-  }
 }
