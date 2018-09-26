@@ -10,14 +10,24 @@
 if(!defined('ABSPATH')) {die('You are not allowed to call this page directly.');}
 
 add_filter( 'mepr-gateway-paths', 'MeprPaystackGateway_gateway_paths' );
-// TODO: wp_enqueue_script ( 'paystack-memberpress-script', plugin_dir_path( __FILE__ ) . 'assets/js/script.js' );
-wp_enqueue_script ( 'paystack-memberpress-script', plugins_url() . '/paystack-memberpress/assets/js/script.js' );
-error_log(plugins_url());
 
 function MeprPaystackGateway_gateway_paths( $paths ) {
   $paths[] = dirname( __FILE__ );
   return $paths;
 }
+
+function wp_enqueue_paystack_script() {
+  global $pagenow;
+ 
+  if ($pagenow != 'admin.php?page=memberpress-options#mepr-integration') {
+      return;
+  }
+
+  wp_enqueue_script ( 'paystack-memberpress-script', plugins_url() . '/paystack-memberpress/assets/js/script.js' );
+  // TODO: wp_enqueue_script ( 'paystack-memberpress-script', plugin_dir_path( __FILE__ ) . 'assets/js/script.js' );
+}
+
+add_action( 'admin_enqueue_scripts', 'wp_enqueue_paystack_script' );
 
 /** Lays down the interface for Gateways in MemberPress **/
 class MeprPaystackGateway extends MeprBaseRealGateway {
@@ -32,12 +42,12 @@ class MeprPaystackGateway extends MeprBaseRealGateway {
 
     $this->capabilities = array(
       'process-payments',
-      'create-subscriptions',
-      'process-refunds',
-      'cancel-subscriptions',
-      'update-subscriptions',
-      'suspend-subscriptions',
-      'send-cc-expirations'
+      // 'create-subscriptions',
+      // 'process-refunds',
+      // 'cancel-subscriptions',
+      // 'update-subscriptions',
+      // 'suspend-subscriptions',
+      // 'send-cc-expirations'
     );
 
     // Setup the notification actions for this gateway
@@ -111,12 +121,10 @@ class MeprPaystackGateway extends MeprBaseRealGateway {
   /** Used to send data to a given payment gateway. In gateways which redirect
     * before this step is necessary this method should just be left blank.
     */
-  public function process_payment($transaction) { }
+  public function process_payment($txn) {}
 
   /** Used to record a successful payment by the given gateway. It should have
-    * the ability to record a successful payment or a failure. It is this method
-    * that should be used when receiving an IPN from PayPal or a Silent Post
-    * from Authorize.net.
+    * the ability to record a successful payment or a failure.
     */
   public function record_payment() { }
 
@@ -213,7 +221,88 @@ class MeprPaystackGateway extends MeprBaseRealGateway {
   /** This spits out html for the payment form on the registration / payment
     * page for the user to fill out for payment.
     */
-  public function display_payment_form($amount, $user, $product_id, $transaction_id) { }
+
+  public function display_payment_form($amount, $user, $product_id, $txn_id) {
+    $mepr_options = MeprOptions::fetch();
+    $prd = new MeprProduct($product_id);
+    $coupon = false;
+
+    $txn = new MeprTransaction($txn_id);
+
+    //Artifically set the price of the $prd in case a coupon was used
+    if($prd->price != $amount) {
+      $coupon = true;
+      $prd->price = $amount;
+    }
+
+    $invoice = MeprTransactionsHelper::get_invoice($txn);
+    echo $invoice;
+
+    ?>
+      <div class="mp_wrapper mp_payment_form_wrapper">
+        <?php
+          // if(!$this->settings->use_stripe_checkout) {
+            // $this->display_on_site_form($txn);
+          // }
+          // else {
+            $this->display_paystack_checkout_form($txn);
+          // }
+        ?>
+      </div>
+    <?php
+  }
+
+  //In the future, this could open the door to Apple Pay and Bitcoin?
+  //Bitcoin can NOT be used for auto-recurring subs though - not sure about Apple Pay
+  public function display_paystack_checkout_form($txn) {
+    $mepr_options = MeprOptions::fetch();
+    $user         = $txn->user();
+    $prd          = $txn->product();
+    $amount       = $txn->rec;
+    $mode         = $this->settings->test_mode;
+
+    if ($mode == 'on'){
+      $public_key   = $this->settings->api_keys['test']['public'];
+    } else {
+      $public_key   = $this->settings->api_keys['live']['public'];
+    }
+    ?>
+    
+    <form action="" method="POST">
+      <input type="hidden" name="mepr_process_payment_form" value="Y" />
+      <input type="hidden" name="mepr_transaction_id" value="<?php echo $txn->id; ?>" />
+      <input type="button" onclick="PayWithMeprPaystack()" value="submit"/>
+      <script src="https://js.paystack.co/v1/inline.js"></script>
+      <script>
+        function PayWithMeprPaystack(){
+          var handler = PaystackPop.setup({
+            key: '<?php echo $public_key; ?>',
+            email: '<?php echo esc_attr($user->user_email); ?>',
+            amount: <?php echo esc_attr($amount->total) * 100; ?>,
+            currency: '<?php echo $mepr_options->currency_code; ?>',
+            metadata: {
+              custom_fields: [
+                  {
+                      display_name: "Mobile Number",
+                      variable_name: "mobile_number",
+                      value: "+2348012345678"
+                  }
+              ]
+            },
+            callback: function(response){
+                alert('success. transaction ref is ' + response.reference);
+            },
+            onClose: function(){
+                alert('window closed');
+            }
+          });
+          handler.openIframe();
+        }
+      </script>
+    </form>
+    
+    <?php
+  }
 
   /** Validates the payment form before a payment is processed */
   public function validate_payment_form($errors) { }
@@ -229,7 +318,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway {
     $force_ssl            = ($this->settings->force_ssl == 'on' or $this->settings->force_ssl == true);
     $debug                = ($this->settings->debug == 'on' or $this->settings->debug == true);
     $test_mode            = ($this->settings->test_mode == 'on' or $this->settings->test_mode == true);
-    $use_paystack_checkout  = ($this->settings->use_paystack_checkout == 'on' or $this->settings->use_stripe_checkout == true);
+    $use_paystack_checkout  = ($this->settings->use_paystack_checkout == 'on' or $this->settings->use_paystack_checkout == true);
 
     ?>
     <table id="mepr-paystack-test-keys-<?php echo $this->id; ?>" class="mepr-paystack-test-keys mepr-hidden">
