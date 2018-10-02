@@ -23,11 +23,12 @@ function wp_enqueue_paystack_script() {
       return;
   }
 
-  wp_enqueue_script ( 'paystack-memberpress-script', plugins_url() . '/paystack-memberpress/assets/js/script.js' );
-  // TODO: wp_enqueue_script ( 'paystack-memberpress-script', plugin_dir_path( __FILE__ ) . 'assets/js/script.js' );
+  // wp_enqueue_script ( 'paystack-memberpress-script', plugins_url() . '/paystack-memberpress/assets/js/script.js' );
+  wp_enqueue_script ( 'paystack-memberpress-script', plugin_dir_path( __FILE__ ) . 'assets/js/script.js' );
 }
 
 add_action( 'admin_enqueue_scripts', 'wp_enqueue_paystack_script' );
+add_action('parse_request', array(MeprPaystackGateway, 'handle_api_requests'), 0);
 
 /** Lays down the interface for Gateways in MemberPress **/
 class MeprPaystackGateway extends MeprBaseRealGateway {
@@ -121,12 +122,112 @@ class MeprPaystackGateway extends MeprBaseRealGateway {
   /** Used to send data to a given payment gateway. In gateways which redirect
     * before this step is necessary this method should just be left blank.
     */
-  public function process_payment($txn) {}
+  public function process_payment($txn) {
+    $mepr_options = MeprOptions::fetch();
+    $mode = $this->settings->test_mode;
+    $gateway_id = $txn->gateway;
+    $ref = $_GET['reference'];
+
+    $api_data = $mepr_options->integrations[$gateway_id];
+
+    if ($api_data['test_mode'] == 'on'){
+      $secret_key   = $api_data['api_keys']['test']['secret'];
+    } else {
+      $secret_key   = $api_data['api_keys']['live']['secret'];
+    }
+
+    $url = "https://api.paystack.co/transaction/verify/" . $ref;
+    $args = array(
+      'headers' => array(
+          'Authorization' => 'Bearer ' . $secret_key,
+      ),
+    );
+    
+    $request = wp_remote_get($url, $args);
+    if (is_wp_error($request)) {
+        return false; // Bail early
+    }
+    $body = wp_remote_retrieve_body($request);
+    $result = json_decode($body);
+    
+    $charge = $result->data;
+
+    $txn->trans_num = $charge->reference;
+    $txn->response = json_encode($charge);
+    // $txn->store(); 
+
+    $_REQUEST['data'] = $charge;
+
+    if ($result->data->status == 'success') {
+      // the transaction was successful, you can deliver value
+      echo json_encode ([
+        'url' => get_page_link($mepr_options->thankyou_page_id),
+        'status' => 'true',
+      ]);
+      return $this->record_payment();
+    } else {
+      // the transaction was not successful, do not deliver value'
+      throw new MeprGatewayException( __('Payment was unsuccessful, please check your payment details and try again.', 'memberpress') );
+      return $this->record_payment_failure();
+    }
+  }
 
   /** Used to record a successful payment by the given gateway. It should have
     * the ability to record a successful payment or a failure.
     */
-  public function record_payment() { }
+  public function record_payment() {
+
+    if(isset($_REQUEST['data'])) {
+      $charge = (object)$_REQUEST['data'];
+
+      $obj = MeprTransaction::get_one_by_trans_num($charge->reference);
+
+      if(is_object($obj) and isset($obj->id)) {
+        $txn = new MeprTransaction();
+        $txn->load_data($obj);
+        $usr = $txn->user();
+
+        // Just short circuit if the txn has already completed
+        if($txn->status == MeprTransaction::$complete_str)
+          return;
+
+        $txn->status    = MeprTransaction::$complete_str;
+        $txn->response  = $charge;
+
+        // This will only work before maybe_cancel_old_sub is run
+        $upgrade = $txn->is_upgrade();
+        $downgrade = $txn->is_downgrade();
+
+        $txn->maybe_cancel_old_sub();
+        $txn->store();
+
+
+
+        $prd = $txn->product();
+
+        if( $prd->period_type=='lifetime' ) {
+          if( $upgrade ) {
+            $this->upgraded_sub($txn);
+            MeprUtils::send_upgraded_txn_notices( $txn );
+          }
+          else if( $downgrade ) {
+            $this->downgraded_sub($txn);
+            MeprUtils::send_downgraded_txn_notices( $txn );
+          }
+          else {
+            $this->new_sub($txn);
+          }
+
+          MeprUtils::send_signup_notices( $txn );
+        }
+
+        MeprUtils::send_transaction_receipt_notices( $txn );
+        MeprUtils::send_cc_expiration_notices( $txn );
+      }
+    }
+
+    return false;
+  }
 
   /** This method should be used by the class to push a request to to the gateway.
     */
@@ -252,20 +353,44 @@ class MeprPaystackGateway extends MeprBaseRealGateway {
     <?php
   }
 
-  //In the future, this could open the door to Apple Pay and Bitcoin?
-  //Bitcoin can NOT be used for auto-recurring subs though - not sure about Apple Pay
+  public static function handle_api_requests()
+    {
+      global $wp;
+      
+      if (!empty($_GET['mepr-paystack'])) { // WPCS: input var okay, CSRF ok.
+          $wp->query_vars['mepr-paystack'] = sanitize_key(wp_unslash($_GET['mepr-paystack'])); // WPCS: input var okay, CSRF ok.
+          $key = $wp->query_vars['mepr-paystack'];
+          if ($key && ($key === 'verify') && isset($_GET['reference'])) {
+              // handle verification here
+              $body = $_POST["body"];
+              $txn = json_decode(json_encode($body), FALSE);
+              $r = new MeprPaystackGateway();
+              $r->process_payment($txn);
+              die();
+          }
+      }
+    }
+
   public function display_paystack_checkout_form($txn) {
     $mepr_options = MeprOptions::fetch();
     $user         = $txn->user();
     $prd          = $txn->product();
     $amount       = $txn->rec;
     $mode         = $this->settings->test_mode;
+    $ref          = $txn->rec->trans_num;
 
     if ($mode == 'on'){
       $public_key   = $this->settings->api_keys['test']['public'];
     } else {
       $public_key   = $this->settings->api_keys['live']['public'];
     }
+
+    $verify_url = home_url()  . '?' . http_build_query(
+      [
+        'mepr-paystack' => 'verify',
+        'reference' => $ref,
+      ]
+    );
     ?>
     
     <form action="" method="POST">
@@ -277,6 +402,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway {
         function PayWithMeprPaystack(){
           var handler = PaystackPop.setup({
             key: '<?php echo $public_key; ?>',
+            ref: '<?php echo $ref ?>',
             email: '<?php echo esc_attr($user->user_email); ?>',
             amount: <?php echo esc_attr($amount->total) * 100; ?>,
             currency: '<?php echo $mepr_options->currency_code; ?>',
@@ -290,12 +416,28 @@ class MeprPaystackGateway extends MeprBaseRealGateway {
               ]
             },
             callback: function(response){
-                alert('success. transaction ref is ' + response.reference);
+              jQuery.ajax({
+                url: '<?php echo $verify_url ?>',
+                data: { 
+                  'body': <?php echo $txn ?>
+                },
+                method: 'post',
+                success: function (responseJSON) {
+                  dx = JSON.parse(responseJSON);
+                  console.log(dx);
+                  
+                  window.location.replace(dx.url);
+                },
+                error: function(err){
+                  console.log(err);
+                  window.history.back();
+                }
+              })
             },
             onClose: function(){
-                alert('window closed');
+              window.history.back();
             }
-          });
+          })
           handler.openIframe();
         }
       </script>
