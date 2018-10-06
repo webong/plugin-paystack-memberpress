@@ -18,13 +18,12 @@ function MeprPaystackGateway_gateway_paths( $paths ) {
 
 function wp_enqueue_paystack_script() {
   global $pagenow;
- 
-  if ($pagenow != 'admin.php?page=memberpress-options#mepr-integration') {
+
+  if ($pagenow != 'admin.php') {
       return;
   }
 
-  // wp_enqueue_script ( 'paystack-memberpress-script', plugins_url() . '/paystack-memberpress/assets/js/script.js' );
-  wp_enqueue_script ( 'paystack-memberpress-script', plugin_dir_path( __FILE__ ) . 'assets/js/script.js' );
+  wp_enqueue_script ( 'paystack-memberpress-script', plugins_url() . '/paystack-memberpress/assets/js/script.js' );
 }
 
 add_action( 'admin_enqueue_scripts', 'wp_enqueue_paystack_script' );
@@ -38,7 +37,6 @@ class MeprPaystackGateway extends MeprBaseRealGateway {
     $this->name = __("Paystack", 'memberpress');
     $this->icon = MEPR_IMAGES_URL . '/checkout/cards.png';
     $this->desc = __('Pay with your card via Paystack', 'memberpress');
-
     $this->set_defaults();
 
     $this->capabilities = array(
@@ -86,7 +84,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway {
         'sandbox' => false,
         'force_ssl' => false,
         'debug' => false,
-        'test_mode' => true,
+        'test_mode' => false,
         'use_paystack_checkout' => false,
         'api_keys' => array(
           'test' => array(
@@ -531,7 +529,9 @@ class MeprPaystackGateway extends MeprBaseRealGateway {
   public function process_update_account_form($subscription_id) { }
 
   /** Returns boolean ... whether or not we should be sending in test mode or not */
-  public function is_test_mode() { return false; }
+  public function is_test_mode() { 
+    return (isset($this->settings->test_mode) and $this->settings->test_mode);
+   }
 
   /** Returns boolean ... whether or not we should be forcing ssl */
   public function force_ssl() { }
