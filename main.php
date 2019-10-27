@@ -26,6 +26,7 @@ if (is_plugin_active('memberpress/memberpress.php')) {
     $mp_paystack_url_protocol = (is_ssl()) ? 'https' : 'http'; // Make all of our URLS protocol agnostic
     define('MP_PAYSTACK_URL', preg_replace('/^https?:/', "{$mp_paystack_url_protocol}:", plugins_url('/' . MP_PAYSTACK_PLUGIN_NAME)));
     define('MP_PAYSTACK_JS_URL', MP_PAYSTACK_URL.'/js');
+    define('MP_PAYSTACK_IMAGES_URL', MP_PAYSTACK_URL.'/images');
 
     // Load Memberpress Base Gateway
     require_once(MP_PAYSTACK_PATH . '/../memberpress/app/lib/MeprBaseGateway.php');
