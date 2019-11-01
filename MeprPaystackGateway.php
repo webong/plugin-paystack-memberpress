@@ -34,7 +34,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       'callback' => 'callback_handler',
     );
 
-    $this->message_pages = array( 'subscription' => 'subscription_message' );
+    $this->message_pages = array('subscription' => 'subscription_message');
   }
 
   public function load($settings)
@@ -350,6 +350,9 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
     //Handle Trial period stuff
     if ($sub->trial) {
+      //Prepare the $txn for the process_payment method
+      $txn->set_subtotal($sub->trial_amount);
+      $txn->status = MeprTransaction::$pending_str;
       $this->record_trial_payment($txn);
       return $txn;
     }
