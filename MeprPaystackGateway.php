@@ -17,12 +17,10 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $this->has_spc_form = true;
 
     $this->capabilities = array(
-      // 'process-credit-cards',
       'process-payments',
       'process-refunds',
       'create-subscriptions',
       'cancel-subscriptions',
-      'update-subscriptions',
       'suspend-subscriptions',
       'resume-subscriptions',
       'send-cc-expirations'
@@ -34,7 +32,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       'callback' => 'callback_handler',
     );
 
-    $this->message_pages = array( 'subscription' => 'subscription_message' );
+    $this->message_pages = array('subscription' => 'subscription_message');
   }
 
   public function load($settings)
@@ -82,7 +80,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $this->use_label = $this->settings->use_label;
     $this->use_icon = $this->settings->use_icon;
     $this->use_desc = $this->settings->use_desc;
-    $this->has_spc_form = $this->settings->use_paystack_checkout ? false : true;
+    // $this->has_spc_form = $this->settings->use_paystack_checkout ? false : true;
     //$this->recurrence_type = $this->settings->recurrence_type;
 
     if ($this->is_test_mode()) {
@@ -311,26 +309,26 @@ class MeprPaystackGateway extends MeprBaseRealGateway
    */
   public function record_refund()
   {
-      $trans_num = $_REQUEST['trans_num'];
-      $obj = MeprTransaction::get_one_by_trans_num($trans_num);
+    $trans_num = $_REQUEST['trans_num'];
+    $obj = MeprTransaction::get_one_by_trans_num($trans_num);
 
-      if (!is_null($obj) && (int) $obj->id > 0) {
-        $txn = new MeprTransaction($obj->id);
+    if (!is_null($obj) && (int) $obj->id > 0) {
+      $txn = new MeprTransaction($obj->id);
 
-        // Seriously ... if txn was already refunded what are we doing here?
-        if ($txn->status == MeprTransaction::$refunded_str) {
-          return $txn->id;
-        }
-
-        $txn->status = MeprTransaction::$refunded_str;
-        $txn->store();
-
-        MeprUtils::send_refunded_txn_notices($txn);
-
+      // Seriously ... if txn was already refunded what are we doing here?
+      if ($txn->status == MeprTransaction::$refunded_str) {
         return $txn->id;
       }
 
-      return false;
+      $txn->status = MeprTransaction::$refunded_str;
+      $txn->store();
+
+      MeprUtils::send_refunded_txn_notices($txn);
+
+      return $txn->id;
+    }
+
+    return false;
   }
 
   /** Used to send subscription data to a given payment gateway. In gateways
@@ -349,12 +347,11 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $mepr_options = MeprOptions::fetch();
     $sub = $txn->subscription();
 
-    //Handle Trial period stuff
+    //Handle Free Trial period stuff
     if ($sub->trial) {
       //Prepare the $txn for the process_payment method
       $txn->set_subtotal($sub->trial_amount);
       $txn->status = MeprTransaction::$pending_str;
-
       $this->record_trial_payment($txn);
       return $txn;
     }
@@ -412,8 +409,13 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       $sdata = (object) $_REQUEST['data'];
       //error_log("********** MeprPaystackGateway::record_create_subscription sData: \n" . MeprUtils::object_to_string($sdata));
       $sub = MeprSubscription::get_one_by_subscr_id($sdata->customer['customer_code']);
+
+      if (!$sub) {
+        return false;
+      }
       //error_log("********** MeprPaystackGateway::record_create_subscription Subscription: \n" . MeprUtils::object_to_string($sub));
       $sub->status = MeprSubscription::$active_str;
+      $sub->subscr_id = $sdata->subscription_code;
 
       $card = $this->get_card($sdata);
       if (!empty($card) && $card['reusable']) {
@@ -501,9 +503,11 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
   protected function record_subscription_invoice($invoice)
   {
+    if (!$invoice->paid) return;
+
     // Make sure there's a valid subscription for this request and this payment hasn't already been recorded
     if (
-      !($sub = MeprSubscription::get_one_by_subscr_id($invoice->customer['customer_code'])) || MeprTransaction::txn_exists($invoice->transaction['reference'])
+      !($sub = MeprSubscription::get_one_by_subscr_id($invoice->subscription['subscription_code'])) || MeprTransaction::txn_exists($invoice->transaction['reference'])
     ) {
       return false;
     }
@@ -560,8 +564,8 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     // Set Auth Token for Current User
     $this->set_auth_token($usr, $invoice->authorization);
 
-    $sub->subscr_id = $invoice->subscription['subscription_code'];
     $sub->status = MeprSubscription::$active_str;
+    $sub->update_meta('paystack_invoice_code', $invoice->invoice_code);
 
     if ($card = $this->get_card($invoice)) {
       $sub->cc_exp_month = $card['exp_month'];
@@ -569,6 +573,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       $sub->cc_last4     = $card['last4'];
     }
 
+    // $sub->subscr_id = $invoice->subscription['subscription_code'];
     $sub->gateway = $this->id;
     $sub->store();
     // If a limit was set on the recurring cycles we need
@@ -887,11 +892,9 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $sub->status = MeprSubscription::$cancelled_str;
     $sub->store();
 
-    if (isset($_REQUEST['expire']))
-      $sub->limit_reached_actions();
+    $sub->limit_reached_actions();
 
-    if (!isset($_REQUEST['silent']) || ($_REQUEST['silent'] == false))
-      MeprUtils::send_cancelled_sub_notices($sub);
+    MeprUtils::send_cancelled_sub_notices($sub);
 
     return $sub;
   }
@@ -1042,8 +1045,6 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       </tbody>
     </table>
 <?php
-
-use MeprPaystackGateway;
   }
 
   /** Validates the form for the given payment gateway on the MemberPress Options page */
