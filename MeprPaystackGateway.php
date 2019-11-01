@@ -290,9 +290,12 @@ class MeprPaystackGateway extends MeprBaseRealGateway
   {
     $mepr_options = MeprOptions::fetch();
 
+    // Handle zero decimal currencies in Paystack
+    $amount = (MeprUtils::is_zero_decimal_currency()) ? MeprUtils::format_float(($txn->amount), 0) : MeprUtils::format_float(($txn->amount * 100), 0);
+
     $args = MeprHooks::apply_filters('mepr_paystack_refund_args', array(
       'transaction' => $txn->trans_num,
-      'amount'      => $txn->amount,
+      'amount'      => $amount,
       'currency'    => $mepr_options->currency_code,
       'merchant_note'  => 'Refund Memberpress Transaction'
     ), $txn);
@@ -308,7 +311,6 @@ class MeprPaystackGateway extends MeprBaseRealGateway
    */
   public function record_refund()
   {
-    if (isset($_REQUEST['data'])) {
       $trans_num = $_REQUEST['trans_num'];
       $obj = MeprTransaction::get_one_by_trans_num($trans_num);
 
@@ -327,9 +329,8 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
         return $txn->id;
       }
-    }
 
-    return false;
+      return false;
   }
 
   /** Used to send subscription data to a given payment gateway. In gateways
@@ -350,6 +351,10 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
     //Handle Trial period stuff
     if ($sub->trial) {
+      //Prepare the $txn for the process_payment method
+      $txn->set_subtotal($sub->trial_amount);
+      $txn->status = MeprTransaction::$pending_str;
+
       $this->record_trial_payment($txn);
       return $txn;
     }
@@ -540,8 +545,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
     $sdata = $this->send_paystack_request("customer/{$sub->subscr_id}", array(), 'get');
 
-    // 'subscription' attribute went away in 2014-01-31
-    //$txn->expires_at = MeprUtils::ts_to_mysql_date($sdata['subscription']['current_period_end'], 'Y-m-d 23:59:59');
+    $txn->expires_at = MeprUtils::ts_to_mysql_date($sdata['subscription']['next_payment_date'], 'Y-m-d 23:59:59');
 
     $this->email_status(
       "/customers/{$sub->subscr_id}\n" .
@@ -1038,6 +1042,8 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       </tbody>
     </table>
 <?php
+
+use MeprPaystackGateway;
   }
 
   /** Validates the form for the given payment gateway on the MemberPress Options page */
@@ -1139,13 +1145,13 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     if (!$response->status || $charge->status == 'failed') {
       $this->record_payment_failure();
       //If all else fails, just send them to their account page
-      MeprUtils::wp_redirect($mepr_options->account_page_url('action=subscriptions'));
+      MeprUtils::wp_redirect($mepr_options->account_page_url('action=subscriptions') . '?message=Thank You');
     }
 
     // Get Transaction from paystack reference or charge id
     $obj = MeprTransaction::get_one_by_trans_num($reference);
 
-    if (is_object($obj) and isset($obj->id)) {
+    if (!is_object($obj) and !isset($obj->id)) {
       MeprUtils::wp_redirect($mepr_options->account_page_url('action=subscriptions'));
     }
 
@@ -1195,9 +1201,9 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       } else if ($request->event == 'subscription.create') {
         $this->record_create_subscription(); // done on page
       } else if ($request->event == 'subscription.enable') {
-        $this->record_update_subscription(); // done on page
+        // $this->record_update_subscription(); // done on page
       } else if ($request->event == 'subscription.disable') {
-        $this->record_cancel_subscription();
+        // $this->record_cancel_subscription(); // done on page
       } else if ($request->event == 'invoice.create' || $request->event == 'invoice.update') {
         if (!$request->data['paid']) return;
         $this->record_subscription_payment();
