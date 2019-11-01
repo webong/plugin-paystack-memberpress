@@ -33,6 +33,8 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       'whk' => 'webhook_listener',
       'callback' => 'callback_handler',
     );
+
+    $this->message_pages = array( 'subscription' => 'subscription_message' );
   }
 
   public function load($settings)
@@ -1142,6 +1144,11 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
     // Get Transaction from paystack reference or charge id
     $obj = MeprTransaction::get_one_by_trans_num($reference);
+
+    if (is_object($obj) and isset($obj->id)) {
+      MeprUtils::wp_redirect($mepr_options->account_page_url('action=subscriptions'));
+    }
+
     $txn = new MeprTransaction();
     $txn->load_data($obj);
 
@@ -1150,7 +1157,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       $txn->store();
     }
 
-    // Redirect to thank you page (even when payment fails)
+    // Redirect to thank you page
     $product = new MeprProduct($txn->product_id);
     $sanitized_title = sanitize_title($product->post_title);
     $query_params = array('membership' => $sanitized_title, 'trans_num' => $txn->trans_num, 'membership_id' => $product->ID);
