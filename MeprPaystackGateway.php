@@ -290,9 +290,12 @@ class MeprPaystackGateway extends MeprBaseRealGateway
   {
     $mepr_options = MeprOptions::fetch();
 
+    // Handle zero decimal currencies in Paystack
+    $amount = (MeprUtils::is_zero_decimal_currency()) ? MeprUtils::format_float(($txn->amount), 0) : MeprUtils::format_float(($txn->amount * 100), 0);
+
     $args = MeprHooks::apply_filters('mepr_paystack_refund_args', array(
       'transaction' => $txn->trans_num,
-      'amount'      => $txn->amount,
+      'amount'      => $amount,
       'currency'    => $mepr_options->currency_code,
       'merchant_note'  => 'Refund Memberpress Transaction'
     ), $txn);
@@ -348,7 +351,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $mepr_options = MeprOptions::fetch();
     $sub = $txn->subscription();
 
-    //Handle Trial period stuff
+    //Handle Free Trial period stuff
     if ($sub->trial) {
       //Prepare the $txn for the process_payment method
       $txn->set_subtotal($sub->trial_amount);
