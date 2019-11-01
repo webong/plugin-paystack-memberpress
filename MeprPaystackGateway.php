@@ -82,7 +82,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $this->use_label = $this->settings->use_label;
     $this->use_icon = $this->settings->use_icon;
     $this->use_desc = $this->settings->use_desc;
-    $this->has_spc_form = $this->settings->use_paystack_checkout ? false : true;
+    // $this->has_spc_form = $this->settings->use_paystack_checkout ? false : true;
     //$this->recurrence_type = $this->settings->recurrence_type;
 
     if ($this->is_test_mode()) {
