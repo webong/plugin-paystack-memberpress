@@ -366,7 +366,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
     $args = MeprHooks::apply_filters('mepr_paystack_subscription_args', array(
       'callback_url' => $this->notify_url('callback'),
-      // 'reference' => MeprTransaction::generate_trans_num(),
+      'reference' => MeprTransaction::generate_trans_num(),
       'email' => $usr->user_email,
       'plan' => $plan->plan_code,
       'invoice_limit' => $total_occurrences,
