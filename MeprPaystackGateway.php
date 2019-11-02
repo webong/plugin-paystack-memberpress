@@ -14,7 +14,6 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $this->icon = MP_PAYSTACK_IMAGES_URL . '/cards.png';
     $this->desc = __('Pay via Paystack', 'memberpress');
     $this->set_defaults();
-    $this->has_spc_form = true;
 
     $this->capabilities = array(
       'process-payments',
@@ -644,7 +643,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     // Set Auth Token for Current User
     $this->set_auth_token($usr, $charge->authorization);
 
-    $sub->subscr_id = $sub->get_meta('paystack_subscription_code', true);
+    // $sub->subscr_id = $sub->get_meta('paystack_subscription_code', true);
     $sub->status = MeprSubscription::$active_str;
 
     if ($card = $this->get_card($charge)) {
@@ -1029,38 +1028,50 @@ class MeprPaystackGateway extends MeprBaseRealGateway
         </tr>
       </tbody>
     </table>
-<?php
-  }
-
-  /** Validates the form for the given payment gateway on the MemberPress Options page */
-  public function validate_options_form($errors)
-  {
-    $mepr_options = MeprOptions::fetch();
-
-    $testmode = isset($_REQUEST[$mepr_options->integrations_str][$this->id]['test_mode']);
-    $testmodestr  = $testmode ? 'test' : 'live';
-
-    if (
-      !isset($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['secret']) or
-      empty($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['secret']) or
-      !isset($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['public']) or
-      empty($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['public'])
-    ) {
-      $errors[] = __("All Paystack keys must be filled in.", 'memberpress');
+  <?php
     }
 
-    return $errors;
+    /** Validates the form for the given payment gateway on the MemberPress Options page */
+    public function validate_options_form($errors)
+    {
+      $mepr_options = MeprOptions::fetch();
+
+      $testmode = isset($_REQUEST[$mepr_options->integrations_str][$this->id]['test_mode']);
+      $testmodestr  = $testmode ? 'test' : 'live';
+
+      if (
+        !isset($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['secret']) or
+        empty($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['secret']) or
+        !isset($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['public']) or
+        empty($_REQUEST[$mepr_options->integrations_str][$this->id]['api_keys'][$testmodestr]['public'])
+      ) {
+        $errors[] = __("All Paystack keys must be filled in.", 'memberpress');
+      }
+
+      return $errors;
+    }
+
+    /** This gets called on wp_enqueue_script and enqueues a set of
+     * scripts for use on the front end user account page.
+     */
+    public function enqueue_user_account_scripts()
+    { }
+
+    /** Displays the update account form on the subscription account page **/
+    public function display_update_account_form($subscription_id, $errors = array(), $message = "")
+    {
+      ?>
+    <div>
+      <div class="mepr_update_account_table">
+        <div><strong><?php _e('Update your Credit Card information below', 'memberpress'); ?></strong></div>
+          <div class="mp-form-row">
+           
+        </div>
+      </div>
+
+    </div>
+<?php
   }
-
-  /** This gets called on wp_enqueue_script and enqueues a set of
-   * scripts for use on the front end user account page.
-   */
-  public function enqueue_user_account_scripts()
-  { }
-
-  /** Displays the update account form on the subscription account page **/
-  public function display_update_account_form($subscription_id, $errors = array(), $message = "")
-  { }
 
   /** Validates the payment form before a payment is processed */
   public function validate_update_account_form($errors = array())
@@ -1263,7 +1274,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       'amount' => $amount,
       'interval' => $interval,
       'invoice_limit' => $sub->limit_cycles,
-      'name' => "{$prd->post_title} (User Id {$user->ID})",
+      'name' => $prd->post_title,
       'currency' => $mepr_options->currency_code,
       'description' => substr(str_replace(array("'", '"', '<', '>', '$', '®'), '', get_option('blogname')), 0, 21) //Get rid of invalid chars
     ), $sub);
