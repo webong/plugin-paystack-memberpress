@@ -231,10 +231,10 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
       if (is_object($txn_res) and isset($txn_res->id)) {
         $txn = new MeprTransaction($txn_res->id);
-        $txn->trans_num = $charge->id ?? $_REQUEST['reference'];
+        $txn->trans_num = $_REQUEST['reference'];
         $txn->status = MeprTransaction::$failed_str;
         $txn->store();
-      } elseif (isset($charge) && isset($charge->customer) && ($sub = MeprSubscription::get_one_by_subscr_id($charge->customer))) {
+      } elseif (isset($charge) && isset($charge->customer) && ($sub = MeprSubscription::get_one_by_subscr_id($charge->customer['customer_code']) ?? MeprSubscription::get_one_by_subscr_id($charge->subscription['subscription_code']))) {
         $first_txn = $sub->first_txn();
 
         if ($first_txn == false || !($first_txn instanceof MeprTransaction)) {
@@ -492,10 +492,14 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       }
 
       if (isset($data->invoice_code)) {
-        return $this->record_subscription_invoice($data);
+        if ($data->paid) {
+          return $this->record_subscription_invoice($data);
+        } else {
+          return $this->record_payment_failure();
+        }
+      } else {
+        return $this->record_subscription_charge($data);
       }
-
-      return $this->record_subscription_charge($data);
     }
 
     return false;
@@ -503,8 +507,6 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
   protected function record_subscription_invoice($invoice)
   {
-    if (!$invoice->paid) return;
-
     // Make sure there's a valid subscription for this request and this payment hasn't already been recorded
     if (
       !($sub = MeprSubscription::get_one_by_subscr_id($invoice->subscription['subscription_code'])) || MeprTransaction::txn_exists($invoice->transaction['reference'])
@@ -537,7 +539,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $txn->product_id = $sub->product_id;
     $txn->status     = MeprTransaction::$complete_str;
     $txn->coupon_id  = $coupon_id;
-    $txn->trans_num  = $invoice->transaction['reference'];
+    $txn->trans_num  = $invoice->transaction['reference'] ?? MeprTransaction::generate_trans_num();
     $txn->gateway    = $this->id;
     $txn->subscription_id = $sub->id;
 
@@ -547,16 +549,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       $txn->set_gross((float) $invoice->amount / 100);
     }
 
-    $sdata = $this->send_paystack_request("customer/{$sub->subscr_id}", array(), 'get');
-
-    $txn->expires_at = MeprUtils::ts_to_mysql_date($sdata['subscription']['next_payment_date'], 'Y-m-d 23:59:59');
-
-    $this->email_status(
-      "/customers/{$sub->subscr_id}\n" .
-        MeprUtils::object_to_string($sdata, true) .
-        MeprUtils::object_to_string($txn, true),
-      $this->settings->debug
-    );
+    $txn->expires_at = MeprUtils::ts_to_mysql_date($invoice['subscription']['next_payment_date'], 'Y-m-d 23:59:59');
 
     $txn->store();
 
@@ -566,6 +559,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
     $sub->status = MeprSubscription::$active_str;
     $sub->update_meta('paystack_invoice_code', $invoice->invoice_code);
+    $sub->update_meta('paystack_email_token', $invoice->subscription['email_token']);
 
     if ($card = $this->get_card($invoice)) {
       $sub->cc_exp_month = $card['exp_month'];
@@ -638,17 +632,8 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       $txn->set_gross((float) $charge->amount / 100);
     }
 
-    $sdata = $this->send_paystack_request("customer/{$sub->subscr_id}", array(), 'get');
-
     // 'subscription' attribute went away in 2014-01-31
     //$txn->expires_at = MeprUtils::ts_to_mysql_date($sdata['subscription']['current_period_end'], 'Y-m-d 23:59:59');
-
-    $this->email_status(
-      "/customers/{$sub->subscr_id}\n" .
-        MeprUtils::object_to_string($sdata, true) .
-        MeprUtils::object_to_string($txn, true),
-      $this->settings->debug
-    );
 
     $txn->store();
 
@@ -877,7 +862,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
    */
   public function record_cancel_subscription()
   {
-    $subscr_id = $_REQUEST['recurring_payment_id'];
+    $subscr_id = $_REQUEST['recurring_payment_id'] ?? $_REQUEST['data']->subscription_code;
     $sub = MeprSubscription::get_one_by_subscr_id($subscr_id);
 
     if (!$sub) {
@@ -1204,9 +1189,8 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       } else if ($request->event == 'subscription.enable') {
         // $this->record_update_subscription(); // done on page
       } else if ($request->event == 'subscription.disable') {
-        // $this->record_cancel_subscription(); // done on page
-      } else if ($request->event == 'invoice.create' || $request->event == 'invoice.update') {
-        if (!$request->data['paid']) return;
+        $this->record_cancel_subscription();
+      } else if ($request->event == 'invoice.create' || $request->event == 'invoice.update' || $request->event == 'invoice.payment_failed') {
         $this->record_subscription_payment();
       }
       // else if ($request->event == 'invoice.payment_failed') {
