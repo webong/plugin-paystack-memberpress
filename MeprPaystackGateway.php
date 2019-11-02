@@ -637,11 +637,12 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $txn->store();
 
     $usr = $txn->user();
-    // Set Auth Token for Current User
-    $this->set_auth_token($usr, $charge->authorization);
 
     // Set Auth Token for Current User
     $this->set_auth_token($usr, $charge->authorization);
+
+    // Let's sleep the process, so we can wait for the subscription create webhook to be handled fully.
+    // sleep(10);
 
     // $sub->subscr_id = $sub->get_meta('paystack_subscription_code', true);
     $sub->status = MeprSubscription::$active_str;
@@ -1064,10 +1065,11 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     <div>
       <div class="mepr_update_account_table">
         <div><strong><?php _e('Update your Credit Card information below', 'memberpress'); ?></strong></div>
-          <div class="mp-form-row">
-           
+        <div class="mp-form-row">
+          <p>Paystack currently doesn't support card update on subscriptions. To change your card details, cancel the current subscription and renew again.</p>
         </div>
       </div>
+    </div>
 
     </div>
 <?php
