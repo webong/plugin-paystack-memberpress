@@ -33,16 +33,26 @@ Below you will find explanations for every setting that you can find for your Pa
 
 - Name - The name users will see when choosing this gateway option during registration.
 Gateway - This should be set to "Paystack" and will not show up on the frontend.
+
 - ID - ID of your gateway used in database and to be entered if importing subscriptions for this gateway as outlined here.
+
 - Show Payment Label - When checked or unchecked, this will show or hide the Name you entered for this gateway option.
+
 - Show Payment Icon - When checked or unchecked, this will show or hide the Paystack Credit Card symbols for this gateway option.
+
 - Show Payment Description - When checked or unchecked, this will show or hide the description for this gateway option.
-- Test/Live Secret Key - This is where you will enter your Paystack Secret Key for either Test or Live Mode. Before entering your Test Secret Key, be sure to check the Test Mode box in your Paystack gateway in MemberPress. Both Keys (though only one will show based on the selected mode) can be found by going to your Paystack Dashboard > clicking API near the bottom left of the page > and make sure that API is selected near the top of the page (though it should default to API). Once in there, you will need to click the box that is labeled, "Reveal test key secret," then be sure to properly copy and paste that into the correct location in MemberPress for your Paystack gateway option.
-- Test/Live Public Key - This is where you will enter your Paystack Publishable Key for either Test or Live Mode. Before entering your Test Publishable Key, be sure to check the Test Mode box in your Paystack gateway in MemberPress. To find these keys, please see the above item. Be sure to properly copy and paste the key into the correct location in MemberPress for your Paystack gateway option.
-- Test Mode - Check this box if you would like to use Paystack in Test Mode for Testing. IMPORTANT NOTE: because of how Paystack works, you will NOT be able to simply check this option and start testing! You will have to follow our instructions in the above video to setup Paystack in Test Mode. You can find this between minute 0:30 and 2:36 in the above video.
+
+- Test/Live Secret Key - This is where you will enter your Paystack Secret Key for either Test or Live Mode. Before entering your Test Secret Key, be sure to check the Test Mode box in your Paystack gateway in MemberPress. 
+
+- Test/Live Public Key - This is where you will enter your Paystack Publishable Key for either Test or Live Mode. Before entering your Test Publishable Key, be sure to check the Test Mode box in your Paystack gateway in MemberPress. 
+
+- Test Mode - Check this box if you would like to use Paystack in Test Mode for Testing. 
+
 - Force SSL - Use this option if your site has the option of being viewed in http and https. This will automatically switch to https when a user is going to pay so that the transaction is secure.
+
 - Send Debug Emails - Only enable this option if you are having issues with your Paystack gateway and know how to interpret debug emails or have been told to enable them by our support team. Enabling this option will send out about 5 separate debug emails to your email found in your General WordPress Settings.
-- Paystack Webhook URL - The Webhook URL is used to communicate data between your Paystack account and MemberPress. It must be entered correctly for either Test or Live Modes to work correctly. Use the clipboard icon to copy over your Webhook URL. Then go to your Paystack Dashboard > API > Webhooks. When creating the Webhook, make sure that you select the correct Live or Test events, that you are on the latest Webhook version, and that you have it set to send all event types, then click "Add endpoint".
+
+- Paystack Webhook URL - The Webhook URL is used to communicate data between your Paystack account and MemberPress. It must be entered correctly for either Test or Live Modes to work correctly. Use the clipboard icon to copy over your Webhook URL. Then go to your Paystack Dashboard > Settings > API Keys & Webhooks.
 
 ## Capabilities of the Paystack Integration
 
