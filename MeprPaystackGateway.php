@@ -1076,7 +1076,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       <div class="mepr_update_account_table">
         <div><strong><?php _e('Update your Credit Card information below', 'memberpress'); ?></strong></div>
         <div class="mp-form-row">
-          <p>Paystack currently doesn't support card update on subscriptions. To change your card details, cancel the current subscription and renew again.</p>
+          <p>Paystack currently doesn't support changing Credit Card for recurring subscription. To change your card details, cancel the current subscription and subscribe again.</p>
         </div>
       </div>
     </div>
