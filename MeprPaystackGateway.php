@@ -7,6 +7,9 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 {
   public static $paystack_plan_id_str = '_mepr_paystack_plan_id';
 
+  /** This will be where the gateway api will interacted from */
+  public $paystack_api;
+
   /** Used in the view to identify the gateway */
   public function __construct()
   {
@@ -38,6 +41,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
   {
     $this->settings = (object) $settings;
     $this->set_defaults();
+    $this->paystack_api = new MeprPaystackAPI($this->settings);
   }
 
   protected function set_defaults()
@@ -126,7 +130,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     ), $txn);
 
     // Initialize a new payment here
-    $response = (object) $this->send_paystack_request("transaction/initialize/", $args);
+    $response = (object) $this->paystack_api->send_request("transaction/initialize/", $args);
 
     if (!$response->status) {
       return false;
@@ -296,7 +300,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       'currency'    => $mepr_options->currency_code,
       'merchant_note'  => 'Refund Memberpress Transaction'
     ), $txn);
-    $refund = (object) $this->send_paystack_request("refund", $args);
+    $refund = (object) $this->paystack_api->send_request("refund", $args);
     $this->email_status("Paystack Refund: " . MeprUtils::object_to_string($refund), $this->settings->debug);
 
     $_REQUEST['trans_num'] = $txn->trans_num;
@@ -389,7 +393,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     //error_log("********** MeprPaystackGateway::process_create_subscription altered Subscription:\n" . MeprUtils::object_to_string($sub));
 
     // Initialize a new payment here
-    $response = (object) $this->send_paystack_request("transaction/initialize/", $args);
+    $response = (object) $this->paystack_api->send_request("transaction/initialize/", $args);
     if ($response->status) {
       return MeprUtils::wp_redirect("{$response->data['authorization_url']}");
     }
@@ -710,7 +714,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     ), $sub);
 
     // Yeah ... we're cancelling here bro ... with paystack we should be able to restart again
-    $res = $this->send_paystack_request("subscription/disable", $args);
+    $res = $this->paystack_api->send_request("subscription/disable", $args);
 
     $_REQUEST['recurring_payment_id'] = $sub->subscr_id;
 
@@ -794,7 +798,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       $this->settings->debug
     );
 
-    $subscr = $this->send_paystack_request("subscription/enable", $args);
+    $subscr = $this->paystack_api->send_request("subscription/enable", $args);
 
     $_REQUEST['recurring_payment_id'] = $sub->subscr_id;
     return $this->record_resume_subscription();
@@ -855,7 +859,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     ), $sub);
 
     // Yeah ... we're cancelling here bro ... but this time we don't want to restart again
-    $res = $this->send_paystack_request("subscription/disable", $args);
+    $res = $this->paystack_api->send_request("subscription/disable", $args);
 
     $_REQUEST['recurring_payment_id'] = $sub->subscr_id;
 
@@ -1143,7 +1147,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
     $this->email_status('Paystack Verify Charge Transaction Happening Now ... ' . $reference, $this->settings->debug);
 
-    $response = (object) $this->send_paystack_request("transaction/verify/{$reference}", [], 'get');
+    $response = (object) $this->paystack_api->send_request("transaction/verify/{$reference}", [], 'get');
     $_REQUEST['data'] = $charge = (object) $response->data;
     $this->email_status('Paystack Verification: ' . MeprUtils::object_to_string($charge), $this->settings->debug);
 
@@ -1152,6 +1156,9 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       //If all else fails, just send them to their account page
       MeprUtils::wp_redirect($mepr_options->account_page_url('action=subscriptions') . '?message=Thank You');
     }
+
+    // Log Payment successful payment from this addon to paystack
+    $this->paystack_api->log_transaction_success($reference);
 
     // Get Transaction from paystack reference or charge id
     $obj = MeprTransaction::get_one_by_trans_num($reference);
@@ -1189,7 +1196,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     // retrieve the request's body
     $request = @file_get_contents('php://input');
 
-    if ($this->validate_webhook($request) == true) {
+    if ($this->paystack_api->validate_webhook($request) == true) {
       // parse it as JSON
       $request = (object) json_decode($request, true);
       $_REQUEST['data'] = $obj = (object) $request->data;
@@ -1221,11 +1228,6 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     }
   }
 
-  public function validate_webhook($input)
-  {
-    return $_SERVER['HTTP_X_PAYSTACK_SIGNATURE'] == hash_hmac('sha512', $input, $this->settings->secret_key);
-  }
-
   // Originally I thought these should be associated with
   // our membership objects but now I realize they should be
   // associated with our subscription objects
@@ -1239,7 +1241,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
         if (empty($plan_code)) {
           $paystack_plan = $this->create_new_plan($sub);
         } else {
-          $paystack_plan = $this->send_paystack_request("plan/{$plan_code}", array(), 'get');
+          $paystack_plan = $this->paystack_api->send_request("plan/{$plan_code}", array(), 'get');
         }
       }
     } catch (Exception $e) {
@@ -1294,7 +1296,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       $args = array_merge(array("trial_period_days" => $sub->trial_days), $args);
     }
 
-    $paystack_plan = (object) $this->send_paystack_request('plan', $args);
+    $paystack_plan = (object) $this->paystack_api->send_request('plan', $args);
 
     $sub->token = $paystack_plan->data['plan_code'];
     $sub->store();
@@ -1318,12 +1320,12 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
     $this->email_status("###{$uid} Paystack Customer (should be blank at this point): \n" . MeprUtils::object_to_string($paystack_customer, true) . "\n", $this->settings->debug);
     if (strpos($paystack_customer_code, 'CUS_') === 0) {
-      $paystack_customer = (object) $this->send_paystack_request("customer/{$sub->subscr_id}", array(), 'get');
+      $paystack_customer = (object) $this->paystack_api->send_request("customer/{$sub->subscr_id}", array(), 'get');
       if ($paystack_customer->status == false) {
         return false;
       }
     } else {
-      $paystack_customer = (object) $this->send_paystack_request('customer', $paystack_args);
+      $paystack_customer = (object) $this->paystack_api->send_request('customer', $paystack_args);
       if ($paystack_customer->status == false) {
         return false;
       }
@@ -1369,72 +1371,5 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     if (isset($data->authorization) && $data->authorization['channel'] == 'card') {
       return $data->authorization;
     }
-  }
-
-  public function send_paystack_request(
-    $endpoint,
-    $args = array(),
-    $method = 'post',
-    $domain = 'https://api.paystack.co/',
-    $blocking = true,
-    $idempotency_key = false
-  ) {
-    $mepr_options = MeprOptions::fetch();
-    $uri = "{$domain}{$endpoint}";
-
-    $args = MeprHooks::apply_filters('mepr_paystack_request_args', $args);
-
-    $arg_array = array(
-      'method'    => strtoupper($method),
-      'body'      => $args,
-      'timeout'   => 15,
-      'blocking'  => $blocking,
-      'sslverify' => $mepr_options->sslverify,
-      'headers'   => $this->get_headers()
-    );
-
-    if (false !== $idempotency_key) {
-      $arg_array['headers']['Idempotency-Key'] = $idempotency_key;
-    }
-
-    $arg_array = MeprHooks::apply_filters('mepr_paystack_request', $arg_array);
-
-    // $uid = uniqid();
-    // $this->email_status("###{$uid} Paystack Call to {$uri} API Key: {$this->settings->secret_key}\n" . MeprUtils::object_to_string($arg_array, true) . "\n", $this->settings->debug);
-
-    $resp = wp_remote_request($uri, $arg_array);
-
-    // If we're not blocking then the response is irrelevant
-    // So we'll just return true.
-    if ($blocking == false)
-      return true;
-
-    if (is_wp_error($resp)) {
-      throw new MeprHttpException(sprintf(__('You had an HTTP error connecting to %s', 'memberpress'), $this->name));
-    } else {
-      if (null !== ($json_res = json_decode($resp['body'], true))) {
-        //$this->email_status("###{$uid} Paystack Response from {$uri}\n" . MeprUtils::object_to_string($json_res, true) . "\n", $this->settings->debug);
-        if (isset($json_res['error']) || $json_res['status'] == false)
-          throw new MeprRemoteException("{$json_res['message']}");
-        else
-          return $json_res;
-      } else // Un-decipherable message
-        throw new MeprRemoteException(sprintf(__('There was an issue with the payment processor. Try again later.', 'memberpress'), $this->name));
-    }
-
-    return false;
-  }
-
-  /**
-   * Generates the headers to pass to API request.
-   */
-  public function get_headers()
-  {
-    return apply_filters(
-      'mepr_paystack_request_headers',
-      [
-        'Authorization' => "Bearer {$this->settings->secret_key}",
-      ]
-    );
   }
 }
