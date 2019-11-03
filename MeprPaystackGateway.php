@@ -469,6 +469,9 @@ class MeprPaystackGateway extends MeprBaseRealGateway
         $this->new_sub($sub, true);
       }
 
+      //Reload the txn now that it should have a proper trans_num set
+      $txn = new MeprTransaction($txn->id);
+
       MeprUtils::send_signup_notices($txn);
 
       return array('subscription' => $sub, 'transaction' => $txn);
@@ -666,6 +669,9 @@ class MeprPaystackGateway extends MeprBaseRealGateway
         MeprUtils::object_to_string($txn->rec, true),
       $this->settings->debug
     );
+
+    //Reload the txn now that it should have a proper trans_num set
+    $txn = new MeprTransaction($txn->id);
 
     MeprUtils::send_transaction_receipt_notices($txn);
     MeprUtils::send_cc_expiration_notices($txn);
@@ -1161,6 +1167,9 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       $txn->status == MeprTransaction::$confirmed_str;
       $txn->store();
     }
+
+    //Reload the txn now that it should have a proper trans_num set
+    $txn = new MeprTransaction($txn->id);
 
     // Redirect to thank you page
     $product = new MeprProduct($txn->product_id);
