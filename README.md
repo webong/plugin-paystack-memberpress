@@ -1,4 +1,4 @@
-<p align="center"><a href="https://paystack.com/"><img src="./images/paystack.png?raw=true" alt="Payment Gateway for Paystack"></a></p>
+<p align="center"><a href="https://paystack.com/"><img src="./images/paystack.png?raw=true" width="50" height="50" alt="Payment Gateway for Paystack"></a></p>
 
 
 # Memberpress Paystack Gateway Addon
