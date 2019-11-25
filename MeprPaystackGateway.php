@@ -504,7 +504,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       $txn = new MeprTransaction();
       $txn->load_data($obj);
 
-      if ($txn->status == MeprTransaction::$pending_str) {
+      if ($txn->status == MeprTransaction::$pending_str && $charge->status == 'success') {
         $txn->status == MeprTransaction::$confirmed_str;
         $txn->store();
       }
