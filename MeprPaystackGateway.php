@@ -157,7 +157,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
         // Just short circuit if the txn has already completed
         if ($txn->status == MeprTransaction::$complete_str)
-          return;
+          return $txn;
 
         $txn->status  = MeprTransaction::$complete_str;
         // This will only work before maybe_cancel_old_sub is run
@@ -482,6 +482,38 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     }
 
     return false;
+  }
+
+  /** This method should be used by the class to record a successful subscription transaction from
+   * the gateway. This method should also be used by a Silent Posts.
+   */
+  public function record_subscription_transaction()
+  {
+    $mepr_options = MeprOptions::fetch();
+
+    if (isset($_REQUEST['data'])) {
+      $charge = (object) $_REQUEST['data'];
+
+      // Get Transaction from paystack reference or charge id
+      $obj = MeprTransaction::get_one($charge->metadata['transaction_id']);
+
+      if (!is_object($obj) and !isset($obj->id)) {
+        MeprUtils::wp_redirect($mepr_options->account_page_url('action=subscriptions'));
+      }
+
+      $txn = new MeprTransaction();
+      $txn->load_data($obj);
+
+      if ($txn->status == MeprTransaction::$pending_str) {
+        $txn->status == MeprTransaction::$confirmed_str;
+        $txn->store();
+      }
+
+      //Reload the txn now that it should have a proper trans_num set
+      $txn = new MeprTransaction($txn->id);
+
+      return $txn;
+    }
   }
 
   /** Used to record a successful recurring payment by the given gateway. It
@@ -1160,23 +1192,11 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     // Log Payment successful payment from this addon to paystack
     $this->paystack_api->log_transaction_success($reference);
 
-    // Get Transaction from paystack reference or charge id
-    $obj = MeprTransaction::get_one_by_trans_num($reference);
-
-    if (!is_object($obj) and !isset($obj->id)) {
-      MeprUtils::wp_redirect($mepr_options->account_page_url('action=subscriptions'));
+    if (empty($charge->plan)) {
+      $txn = $this->record_payment();
+    } else {
+      $txn = $this->record_subscription_transaction();
     }
-
-    $txn = new MeprTransaction();
-    $txn->load_data($obj);
-
-    if ($txn->status == MeprTransaction::$pending_str) {
-      $txn->status == MeprTransaction::$confirmed_str;
-      $txn->store();
-    }
-
-    //Reload the txn now that it should have a proper trans_num set
-    $txn = new MeprTransaction($txn->id);
 
     // Redirect to thank you page
     $product = new MeprProduct($txn->product_id);
@@ -1210,7 +1230,6 @@ class MeprPaystackGateway extends MeprBaseRealGateway
         } else {
           $this->record_subscription_payment();
         }
-
         // } else if ($request->event == 'charge.refunded') {
         //   $this->record_refund();
       } else if ($request->event == 'subscription.create') {
