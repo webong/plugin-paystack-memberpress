@@ -1,12 +1,12 @@
 <?php
 /*
 Plugin Name: MemberPress Paystack
-Plugin URI: https://wordpress.org/plugins/memberpress-paystack/
+Plugin URI: https://wordpress.org/plugins/paystack-memberpress/
 Description: Paystack integration for MemberPress.
 Version: 0.0.1
 Author: Paystack
 Author URI: https://paystack.com/
-Text Domain: memberpress-paystack
+Text Domain: paystack-memberpress
 License: GPLv2 or later
 Copyright: 2019, Paystack, LLC
 */
@@ -18,8 +18,8 @@ if (!defined('ABSPATH')) {
 include_once(ABSPATH . 'wp-admin/includes/plugin.php');
 
 if (is_plugin_active('memberpress/memberpress.php')) {
-    define('MP_PAYSTACK_PLUGIN_SLUG', 'memberpress-paystack/main.php');
-    define('MP_PAYSTACK_PLUGIN_NAME', 'memberpress-paystack');
+    define('MP_PAYSTACK_PLUGIN_SLUG', 'paystack-memberpress/main.php');
+    define('MP_PAYSTACK_PLUGIN_NAME', 'paystack-memberpress');
     define('MP_PAYSTACK_EDITION', MP_PAYSTACK_PLUGIN_NAME);
     define('MP_PAYSTACK_PATH', WP_PLUGIN_DIR . '/' . MP_PAYSTACK_PLUGIN_NAME);
 
@@ -38,9 +38,4 @@ if (is_plugin_active('memberpress/memberpress.php')) {
     // Load Memberpress Paystack Addon
     require_once(MP_PAYSTACK_PATH . '/MpPaystack.php');
     new MpPaystack;
-
-    // // Load Memberpress Hooks Mechanism
-    // require_once(MP_PAYSTACK_PATH . '/../memberpress/app/lib/MeprHooks.php');
-
-    // MeprHooks::apply_filters('mepr-gateway-paths',  array(MP_PAYSTACK_PATH, MP_PAYSTACK_PATH . '/../memberpress/gateways') );
 }
