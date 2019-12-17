@@ -982,26 +982,6 @@ class MeprPaystackGateway extends MeprBaseRealGateway
   <?php
     }
 
-    public function display_paystack_checkout_form($txn)
-    {
-      $mepr_options = MeprOptions::fetch();
-      $user         = $txn->user();
-      $prd          = $txn->product();
-      $amount       = (MeprUtils::is_zero_decimal_currency()) ? MeprUtils::format_float(($txn->total), 0) : MeprUtils::format_float(($txn->total * 100), 0);
-      //Adjust for trial periods/coupons
-      if (($sub = $txn->subscription()) && $sub->trial) {
-        $amount = (MeprUtils::is_zero_decimal_currency()) ? MeprUtils::format_float(($sub->trial_amount), 0) : MeprUtils::format_float(($sub->trial_amount * 100), 0);
-      }
-      ?>
-    <form action="" method="POST">
-      <input type="hidden" name="mepr_process_payment_form" value="Y" />
-      <input type="hidden" name="mepr_transaction_id" value="<?php echo $txn->id; ?>" />
-      <script src="https://js.paystack.co/v1/inline.js" class="paystack-button" data-amount="<?php echo $amount; ?>" data-reference="<?php echo $txn->id; ?>" data-key="<?php echo $this->settings->public_key; ?>" data-image="<?php echo MeprHooks::apply_filters('mepr-paystack-checkout-data-image-url', '', $txn); ?>" data-name="<?php echo esc_attr($prd->post_title); ?>" data-panel-label="<?php _ex('Submit', 'ui', 'memberpress'); ?>" data-label="<?php _ex('Pay Now', 'ui', 'memberpress'); ?>" data-billing-address="<?php echo ($mepr_options->show_address_fields && $mepr_options->require_address_fields) ? 'true' : 'false'; ?>" data-email="<?php echo esc_attr($user->user_email); ?>" data-first_name="<?php echo esc_attr($user->first_name); ?>" data-lastname="<?php echo esc_attr($user->last_name); ?>" data-currency="<?php echo $mepr_options->currency_code; ?>" data-locale="<?php echo $mepr_options->language_code; ?>">
-      </script>
-    </form>
-  <?php
-    }
-
     /** Validates the payment form before a payment is processed */
     public function validate_payment_form($errors)
     { }

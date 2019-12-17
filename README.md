@@ -1,9 +1,9 @@
 <p align="center"><a href="https://paystack.com/"><img src="./images/paystack.png?raw=true" width="50" height="50" alt="Payment Gateway for Paystack"></a></p>
 
 
-# Memberpress Paystack Gateway Addon
+# Paystack Memberpress Gateway Addon
 
-Memberpress Payment Gateway integration with Paystack for membership subscriptions.
+A Memberpress Payment Gateway integration with Paystack for membership subscriptions.
 
 This addon helps admins and webmasters using Memberpress to accept subscription payment via Paystack gateway. This addon has all the settings for development as well as for production usage. Its easy to install, set up and effective. 
 
