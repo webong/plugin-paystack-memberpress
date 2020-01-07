@@ -147,7 +147,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $this->email_status("Starting record_payment: " . MeprUtils::object_to_string($_REQUEST), $this->settings->debug);
 
     if (isset($_REQUEST['data'])) {
-      $charge = (object) $_REQUEST['data'];
+      $charge = $this->get_request_data();
       $this->email_status("record_payment: \n" . MeprUtils::object_to_string($charge, true) . "\n", $this->settings->debug);
       $obj = MeprTransaction::get_one_by_trans_num($charge->reference);
       if (is_object($obj) and isset($obj->id)) {
@@ -229,12 +229,13 @@ class MeprPaystackGateway extends MeprBaseRealGateway
   public function record_payment_failure()
   {
     if (isset($_REQUEST['data'])) {
-      $charge = (object) $_REQUEST['data'];
-      $txn_res = MeprTransaction::get_one_by_trans_num($_REQUEST['reference']);
+      $charge = $this->get_request_data();
+      $txn_ref = sanitize_text_field($_REQUEST['reference']);
+      $txn_res = MeprTransaction::get_one_by_trans_num($txn_ref);
 
       if (is_object($txn_res) and isset($txn_res->id)) {
         $txn = new MeprTransaction($txn_res->id);
-        $txn->trans_num = $_REQUEST['reference'];
+        $txn->trans_num = $txn_ref;
         $txn->status = MeprTransaction::$failed_str;
         $txn->store();
       } elseif (isset($charge) && isset($charge->customer) && ($sub = MeprSubscription::get_one_by_subscr_id($charge->customer['customer_code']) ?? MeprSubscription::get_one_by_subscr_id($charge->subscription['subscription_code']))) {
@@ -409,7 +410,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $mepr_options = MeprOptions::fetch();
 
     if (isset($_REQUEST['data'])) {
-      $sdata = (object) $_REQUEST['data'];
+      $sdata = $this->get_request_data();
       //error_log("********** MeprPaystackGateway::record_create_subscription sData: \n" . MeprUtils::object_to_string($sdata));
       $sub = MeprSubscription::get_one_by_subscr_id($sdata->customer['customer_code']);
 
@@ -492,7 +493,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $mepr_options = MeprOptions::fetch();
 
     if (isset($_REQUEST['data'])) {
-      $charge = (object) $_REQUEST['data'];
+      $charge = $this->get_request_data();
 
       // Get Transaction from paystack reference or charge id
       $obj = MeprTransaction::get_one($charge->metadata['transaction_id']);
@@ -523,7 +524,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
   public function record_subscription_payment()
   {
     if (isset($_REQUEST['data'])) {
-      $data = (object) $_REQUEST['data'];
+      $data = $this->get_request_data();
 
       if (!isset($data) || !isset($data->customer)) {
         return false;
@@ -758,7 +759,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
    */
   public function record_suspend_subscription()
   {
-    $subscr_id = $_REQUEST['recurring_payment_id'];
+    $subscr_id = sanitize_text_field($_REQUEST['recurring_payment_id']);
     $sub = MeprSubscription::get_one_by_subscr_id($subscr_id);
 
     if (!$sub) {
@@ -841,7 +842,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
    */
   public function record_resume_subscription()
   {
-    $subscr_id = $_REQUEST['recurring_payment_id'];
+    $subscr_id = sanitize_text_field($_REQUEST['recurring_payment_id']);
     $sub = MeprSubscription::get_one_by_subscr_id($subscr_id);
 
     if (!$sub) {
@@ -1155,7 +1156,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $mepr_options = MeprOptions::fetch();
 
     // get the transaction reference from paystack callback
-    $reference = $_REQUEST['reference'];
+    $reference = sanitize_text_field($_REQUEST['reference']);
 
     $this->email_status('Paystack Verify Charge Transaction Happening Now ... ' . $reference, $this->settings->debug);
 
@@ -1370,5 +1371,10 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     if (isset($data->authorization) && $data->authorization['channel'] == 'card') {
       return $data->authorization;
     }
+  }
+
+  protected function get_request_data()
+  {
+    return (object) $_REQUEST['data'];
   }
 }
