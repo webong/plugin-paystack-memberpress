@@ -1273,12 +1273,12 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $user         = $sub->user();
 
     // There's no plan like that so let's create one
-    if ($sub->period_type == 'months')
+    if ($sub->period_type == 'weeks')
+      $interval = 'weekly';
+    else if ($sub->period_type == 'months')
       $interval = 'monthly';
     else if ($sub->period_type == 'years')
-      $interval = 'yearly';
-    else if ($sub->period_type == 'weeks')
-      $interval = 'weekly';
+      $interval = 'annually';
 
     //Handle zero decimal currencies in Paystack
     $amount = (MeprUtils::is_zero_decimal_currency()) ? MeprUtils::format_float(($sub->price), 0) : MeprUtils::format_float(($sub->price * 100), 0);
