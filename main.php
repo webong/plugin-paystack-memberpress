@@ -1,15 +1,18 @@
 <?php
-/*
-Plugin Name: MemberPress Paystack
-Plugin URI: https://wordpress.org/plugins/paystack-memberpress/
-Description: Paystack integration for MemberPress.
-Version: 1.0.0
-Author: Paystack
-Author URI: https://paystack.com/
-Text Domain: paystack-memberpress
-License: GPLv2 or later
-Copyright: 2019, Paystack, LLC
-*/
+
+/**
+ * Plugin Name: MemberPress Paystack
+ * Plugin URI: https://wordpress.org/plugins/paystack-memberpress/
+ * Description: Paystack integration for MemberPress.
+ * Version: 1.1.0
+ * Author: Paystack
+ * Author URI: https://paystack.com/
+ * Developer: Wisdom Ebong
+ * Developer URI: https://wisdomebong.com/
+ * Text Domain: paystack-memberpress
+ * License: GPLv2 or later
+ * Copyright: 2020, Paystack.
+ */
 
 if (!defined('ABSPATH')) {
     die('You are not allowed to call this page directly.');
@@ -37,5 +40,6 @@ if (is_plugin_active('memberpress/memberpress.php')) {
 
     // Load Memberpress Paystack Addon
     require_once(MP_PAYSTACK_PATH . '/MpPaystack.php');
+
     new MpPaystack;
 }

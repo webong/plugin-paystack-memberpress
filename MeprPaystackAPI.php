@@ -9,7 +9,7 @@ class MeprPaystackAPI
     private $public_key;
     private $secret_key;
 
-    public function __construct($settings = array())
+    public function __construct($settings)
     {
         $this->plugin_name = 'Memberpress Paystack Gateway Addon';
         $this->secret_key = isset($settings->secret_key) ? $settings->secret_key : '';
