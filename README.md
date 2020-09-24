@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# paystack-memberpress
-Paystack payment plugin for Memberpress
-=======
 <p align="center"><a href="https://paystack.com/"><img src="./images/paystack.png?raw=true" width="50" height="50" alt="Payment Gateway for Paystack"></a></p>
 
 
@@ -89,4 +85,3 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see <http://www.gnu.org/licenses/>.
->>>>>>> 24b31363ac0347c3a1f76c1c0e71a7febeae784a
