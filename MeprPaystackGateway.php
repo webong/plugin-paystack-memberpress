@@ -112,6 +112,12 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
     // Handle zero decimal currencies in Paystack
     $amount = (MeprUtils::is_zero_decimal_currency()) ? MeprUtils::format_float(($txn->total), 0) : MeprUtils::format_float(($txn->total * 100), 0);
+    
+    $custom_data[] = [
+			'display_name' => 'Plugin Name',
+			'variable_name' => 'plugin_name',
+			'value' => $this->paystack_api->plugin_name
+		];
 
     // Initialize the charge on Paystack's servers - this will charge the user's card
     $args = MeprHooks::apply_filters('mepr_paystack_payment_args', array(
@@ -126,7 +132,8 @@ class MeprPaystackGateway extends MeprBaseRealGateway
         'transaction_id' => $txn->id,
         'trial_payment'  => $trial,
         'site_url'       => esc_url(get_site_url()),
-        'ip_address'     => $_SERVER['REMOTE_ADDR']
+        'ip_address'     => $_SERVER['REMOTE_ADDR'],
+        'custom_fields' => $custom_data
       )
     ), $txn);
 
