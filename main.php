@@ -4,7 +4,7 @@
  * Plugin Name: MemberPress Paystack
  * Plugin URI: https://wordpress.org/plugins/paystack-memberpress/
  * Description: Paystack integration for MemberPress.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: Paystack
  * Author URI: https://paystack.com/
  * Developer: Wisdom Ebong
