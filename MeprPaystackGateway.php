@@ -223,7 +223,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $mepr_options = MeprOptions::fetch();
     $sub = $txn->subscription();
 
-    //Handle Free Trial period stuff
+    // Handle Free Trial period stuff
     if ($sub->trial) {
       //Prepare the $txn for the process_payment method
       $txn->set_subtotal($sub->trial_amount);
@@ -233,13 +233,6 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     }
 
     error_log("********** MeprPaystackGateway::process_create_subscription Subscription:\n" . MeprUtils::object_to_string($sub));
-
-    // Get the customer
-    // $customer = $this->paystack_customer($txn->subscription_id);
-
-    // $sub->subscr_id = $customer->customer_code;
-    // $sub->subscr_id = 'ts_' . uniqid();
-    // $sub->store();
 
     // Get the plan
     $plan = $this->paystack_plan($txn->subscription(), true);
@@ -517,7 +510,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
 
     // Make sure there's a valid subscription for this request and this payment hasn't already been recorded
     if (
-       !($sub = $this::get_subscr_by_plan_code($charge->plan['plan_code'])) && MeprTransaction::txn_exists($charge->reference)
+      !($sub = $this::get_subscr_by_plan_code($charge->plan['plan_code'])) && MeprTransaction::txn_exists($charge->reference)
     ) {
       return false;
     }
@@ -855,11 +848,11 @@ class MeprPaystackGateway extends MeprBaseRealGateway
     $mepr_options = MeprOptions::fetch();
     $sub = $txn->subscription();
 
-    //Prepare the $txn for the process_payment method
+    // Prepare the $txn for the process_payment method
     $txn->set_subtotal($sub->trial_amount);
     $txn->status = MeprTransaction::$pending_str;
 
-    //Attempt processing the payment here 
+    // Attempt processing the payment here 
     $this->process_payment($txn, true);
   }
 
@@ -867,7 +860,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
   {
     $sub = $txn->subscription();
 
-    //Update the txn member vars and store
+    // Update the txn member vars and store
     $txn->txn_type = MeprTransaction::$payment_str;
     $txn->status = MeprTransaction::$complete_str;
     $txn->expires_at = MeprUtils::ts_to_mysql_date(time() + MeprUtils::days($sub->trial_days), 'Y-m-d 23:59:59');
@@ -1303,7 +1296,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
         if (isset($obj->plan)) {
           // Record subscription for an instant charge
           return $this->record_subscription_payment();
-        } 
+        }
 
         return $this->record_payment();
       } else if ($request->event == 'charge.refunded') {
