@@ -263,6 +263,7 @@ class MeprPaystackGateway extends MeprBaseRealGateway
       'plan' => $plan->plan_code,
       'invoice_limit' => $total_occurrences,
       'currency' => $mepr_options->currency_code,
+      'amount' => $sub->price,
       'channels' => ['card'], // Set payment channel to accept only card for subscriptions
       "start_date" => MeprUtils::get_date_from_ts((time() + (($sub->trial) ? MeprUtils::days($sub->trial_days) : 0)), 'Y-m-d'),
       'metadata' => array(
